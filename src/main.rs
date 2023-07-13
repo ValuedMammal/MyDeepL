@@ -1,18 +1,22 @@
-#![allow(unused)]
 use deeprl::{
     DeepL,
+    DocumentOptions,
+    glos::GlossaryEntriesFormat,
     Language, 
-    TextOptions, 
-    text::{SplitSentences, TagHandling},
-    text::Formality,
+    lang::LanguageType, 
+    TextOptions,
+    text::{Formality, SplitSentences, TagHandling},
 };
 use std::{
-    process, 
     env,
+    fs,
+    io::{self, Read}, 
+    path::PathBuf, 
     str::FromStr,
-    io::{self, Read},
+    thread, 
+    time::Duration,
 };
-use anyhow::{Result, Context, bail};
+use anyhow::{Context, bail};
 use crate::args::*;
 pub mod args;
 
@@ -27,7 +31,7 @@ fn main() -> anyhow::Result<()> {
     
     // Execute command
     match args.cmd {
-        // Get usage
+        // Usage
         Cmd::Usage => {
             let usage = dl.usage()?;
             let count = usage.character_count;
@@ -35,15 +39,14 @@ fn main() -> anyhow::Result<()> {
     
             println!("Used: {count}/{limit}");
         },
-        // Translate text
+        // Text
         Cmd::Text(params) => {
             // Check we have a valid target lang
-            let trg = params.target;
-            let Ok(target_lang) = trg.parse::<Language>() else {
+            let Ok(target_lang) = params.target.parse::<Language>() else {
                 bail!("invalid target lang")
             };
 
-            // Build options
+            // Set optional
             // src, split_sent, preserve, formal, glos, tags, outline, split_tag, nonsplit_tag, ignore_tag
             let mut opt = TextOptions::new(target_lang);
 
@@ -135,12 +138,147 @@ fn main() -> anyhow::Result<()> {
                 println!("{}", t.text);
             }
         },
+        // Document
+        Cmd::Document(params) => {
+            let Ok(target_lang) = params.target.parse::<Language>() else {
+                bail!("invalid target lang")
+            };
+            let file_path = params.file.into();
+
+            let mut opt = DocumentOptions::new(target_lang, file_path);
+
+            // Set optional fields
+            // filename, src, formal, glos
+            if let Some(name) = params.filename {
+                opt = opt.filename(name);
+            }
+            if let Some(src) = params.source {
+                let Ok(source_lang) = src.parse::<Language>() else {
+                    bail!("invalid source lang")
+                };
+                opt = opt.source_lang(source_lang);
+            }
+            if let Some(f) = params.formality {
+                opt = opt.formality(Formality::from_str(&f).unwrap());
+            }
+            if let Some(g) = params.glossary {
+                opt = opt.glossary_id(g);
+            }
+            
+            // Upload
+            println!("Uploading file...");
+            let doc = dl.document_upload(opt)?;
+
+            // Poll status
+            let mut is_done = false;
+            let mut server_err: Option<String> = None;
+            let mut secs = Duration::from_secs(2);
+            for _ in 0..3 {
+                thread::sleep(secs);
+
+                let status = dl.document_status(&doc)?;
+                let state = status.status;
+                println!("Status: {state:?}");
+
+                if state.is_done() {
+                    is_done = true;
+                    break
+                }
+                if let Some(msg) = status.error_message {
+                    server_err = Some(msg);
+                    break
+                }
+                // basic backoff
+                secs *= 2;
+            }
+
+            if !is_done {
+                bail!("Poll status timeout");
+                //TODO: prompt user to try download again
+            }
+            if server_err.is_some() {
+                bail!("{}", server_err.unwrap());
+            }
+
+            // Download
+            let mut out_file: Option<PathBuf> = None;
+            if let Some(out) = params.out_file {
+                out_file = Some(PathBuf::from(out));
+            }
+            println!("Retrieving results...");
+            let result = dl.document_download(doc, out_file)?;
+            print!("New translation file: {result:?}");
+        },
+        // Languages
+        Cmd::Languages => {
+            println!("Fetching source languages...");
+            let languages = dl.languages(LanguageType::Source)?;
+            for lang in languages {
+                let code = lang.language;
+                let name = lang.name;
+                println!("{code} {name}");
+            }            
+            
+            println!("Fetching target languages...");
+            let languages = dl.languages(LanguageType::Target)?;
+            for lang in languages {
+                let code = lang.language;
+                let name = lang.name;
+                println!("{code} {name}");
+            }
+        },
+        // Glossary
+        Cmd::Glossary(sub) => {
+            match sub.cmd {
+                Glos::List => {
+                    let glossaries = dl.glossaries()?
+                        .glossaries;
+
+                    if glossaries.is_empty() {
+                        println!("None");
+                    } else {
+                        for glos in glossaries {
+                            //TODO
+                            // let json = serde_json::to_string_pretty(&glos)?;
+                            println!("{glos:?}");
+                        }
+                    }
+                },
+                Glos::Get(glos) => {
+                    let glossary = dl.glossary_info(&glos.id)?;
+                    //println!("{}", serde_json::to_string_pretty(&glos)?);
+                    println!("{glossary:?}");
+                },
+                Glos::Entries(glos) => {
+                    let entries = dl.glossary_entries(&glos.id)?;
+                    print!("{entries}");
+                },
+                Glos::Create(params) => {
+                    let name = params.name;
+                    let Ok(src) = params.source.parse::<Language>() else {
+                        bail!("invalid source lang");
+                    };
+                    let Ok(trg) = params.target.parse::<Language>() else {
+                        bail!("invalid source lang");
+                    };
+
+                    let file_path = PathBuf::from(params.file);
+                    let entries = fs::read_to_string(file_path)?;
+                    //TODO: read from stdin
+                    // or as cli option
+                    let fmt = if params.csv { GlossaryEntriesFormat::Csv } else { GlossaryEntriesFormat::Tsv };
+
+                    let glos = dl.glossary_new(name, src, trg, entries, fmt)?;
+                    println!("{}", glos.glossary_id);
+                },
+                // Delete a glossary
+                Glos::Delete(glos) => {
+                    let _ = dl.glossary_del(&glos.id);
+                    println!("Done");
+                },
+            }
+        },
     };
-    /*
-        Cmd::Document(d) => {},
-        Cmd::Languages => {},
-        Cmd::Glossary(g) => {},
     
-    */
     Ok(())
 }

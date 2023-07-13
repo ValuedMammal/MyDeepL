@@ -18,12 +18,12 @@ pub enum Cmd {
     Usage,
     /// Translate text
     Text(TxtOpt),
-    // /// Translate a document
-    // Document(DocOpt),
-    // /// Fetch list of available source and target languages
-    // Languages,
-    // /// Create, list, and remove glossaries
-    // Glossary(GlosSub),
+    /// Translate a document
+    Document(DocOpt),
+    /// Fetch list of available source and target languages
+    Languages,
+    /// Create, list, and remove glossaries
+    Glossary(GlosSub),
 }
 
 /// Translate text options
@@ -72,16 +72,15 @@ pub struct TxtOpt {
     #[clap(long)]
     pub ignore_tags: Option<String>,
 }
-/*
 
 /// Translate document options
 #[derive(Parser, Debug)]
 pub struct DocOpt {
     /// Source lang
-    #[clap(long)]
+    #[clap(short = 's')]
     pub source: Option<String>,
     /// Target lang
-    #[clap(long)]
+    #[clap(short = 't')]
     pub target: String,
     /// Path to input file
     #[clap(long)]
@@ -127,10 +126,10 @@ pub struct GlosNew {
     #[clap(long)]
     pub name: String,
     /// Source language
-    #[clap(long)]
+    #[clap(short = 's')]
     pub source: String,
     /// Target language
-    #[clap(long)]
+    #[clap(short = 't')]
     pub target: String,
     /// Path to input data. Expects source/target pairs in TSV format, one entry per line
     #[clap(long)]
@@ -161,4 +160,3 @@ pub struct GlosDel {
     /// Glossary id
     pub id: String,
 }
-*/
