@@ -5,7 +5,8 @@ use deeprl::{
     Language, 
     lang::LanguageType, 
     TextOptions,
-    text::{Formality, SplitSentences, TagHandling},
+    text::{Formality, SplitSentences, TagHandling}, 
+    Document,
 };
 use std::{
     env,
@@ -16,7 +17,7 @@ use std::{
     thread, 
     time::Duration,
 };
-use anyhow::{Context, bail};
+use anyhow::bail;
 use crate::args::*;
 pub mod args;
 
@@ -49,7 +50,6 @@ fn main() -> anyhow::Result<()> {
             // Set optional
             // src, split_sent, preserve, formal, glos, tags, outline, split_tag, nonsplit_tag, ignore_tag
             let mut opt = TextOptions::new(target_lang);
-
             if !params.multi_lang {
                 if let Some(src) = params.source {
                     let Ok(source_lang) = src.parse::<Language>() else {
@@ -57,9 +57,8 @@ fn main() -> anyhow::Result<()> {
                     };
                     opt = opt.source_lang(source_lang);
                 }
-                // skip source lang if input contains various langs
+                // else skip source lang if input contains variable lang
             }
-
             if let Some(ss) = params.split_sentences {
                 let split = match ss.as_str() {
                     "0" => SplitSentences::None,
@@ -68,65 +67,52 @@ fn main() -> anyhow::Result<()> {
                 };
                 opt = opt.split_sentences(split);
             }
-
             if params.preserve_formatting {
                 opt = opt.preserve_formatting(true);
             }
-
             if let Some(f) = params.formality {
                 opt = opt.formality(Formality::from_str(&f).unwrap());
                 // Ok to unwrap, as `from_str` defaults to Default
             }
-
             if let Some(g) = params.glossary {
                 opt = opt.glossary_id(g);
             }
-
             if let Some(t) = params.tag_handling {
                 let tag = match t.to_lowercase().as_str() {
                     "xml" => TagHandling::Xml,
                     "html" => TagHandling::Html,
-                    _ => {
-                        bail!("invalid tag handling");
-                    }
+                    _ => bail!("invalid tag handling")
                 };
                 opt = opt.tag_handling(tag);
             }
-
             if params.no_outline_detection {
                 opt = opt.outline_detection(false);
             }
-
             if let Some(split) = params.splitting_tags {
                 opt = opt.splitting_tags(split);
             }
-
             if let Some(non) = params.non_splitting_tags {
                 opt = opt.non_splitting_tags(non);
-            }
-            
+            }            
             if let Some(ig) = params.ignore_tags {
                 opt = opt.ignore_tags(ig);
             }
 
             // Get input text and call translate api
             let mut text: Vec<String> = vec![];
-
-            if let Some(t) = params.text {
-                text.push(t);
-                //TODO: if t[0] == '-', read stdin
+            if params.text.is_none() { 
+                for ln in io::stdin().lines() {
+                    text.push(ln.unwrap());
+                }
             } else {
-                // read stdin
-                let mut s = String::new();
-                io::stdin().read_to_string(&mut s)
-                    .context("failed to read stdin")?;
-
-                // experimental multi-lang input
-                if params.multi_lang {
-                    text = s.split('\n').map(|s| s.to_owned()).collect();
+                let t = params.text.unwrap();
+                if t.starts_with('-') {
+                    for ln in io::stdin().lines() {
+                        text.push(ln.unwrap());
+                    }
                 } else {
-                    // send a single text param
-                    text.push(s);
+                    // Single string
+                    text.push(t);
                 }
             }
 
@@ -140,34 +126,53 @@ fn main() -> anyhow::Result<()> {
         },
         // Document
         Cmd::Document(params) => {
-            let Ok(target_lang) = params.target.parse::<Language>() else {
-                bail!("invalid target lang")
-            };
-            let file_path = params.file.into();
-
-            let mut opt = DocumentOptions::new(target_lang, file_path);
-
-            // Set optional fields
-            // filename, src, formal, glos
-            if let Some(name) = params.filename {
-                opt = opt.filename(name);
-            }
-            if let Some(src) = params.source {
-                let Ok(source_lang) = src.parse::<Language>() else {
-                    bail!("invalid source lang")
+            let doc: Document;
+            // Skip upload if doc handle present
+            if let Some(document_id) = params.doc_id {
+                let Some(document_key) = params.key else {
+                    bail!("missing required document key")
                 };
-                opt = opt.source_lang(source_lang);
+                doc = Document { document_id, document_key };
+            } else {
+                // Set required options
+                // target_lang, in file
+                let Some(trg) = params.target else {
+                    bail!("missing required target language");
+                };
+                let Ok(target_lang) = trg.parse::<Language>() else {
+                    bail!("invalid target lang")
+                };
+                let Some(fp) = params.file else {
+                    bail!("missing document file path");
+                };
+                let file_path = PathBuf::from(fp);
+                let mut opt = DocumentOptions::new(target_lang, file_path);
+    
+                // Set optional
+                // filename, src, formal, glos
+                if let Some(name) = params.filename {
+                    opt = opt.filename(name);
+                }
+                if let Some(src) = params.source {
+                    let Ok(source_lang) = src.parse::<Language>() else {
+                        bail!("invalid source lang")
+                    };
+                    opt = opt.source_lang(source_lang);
+                }
+                if let Some(f) = params.formality {
+                    opt = opt.formality(Formality::from_str(&f).unwrap());
+                }
+                if let Some(g) = params.glossary {
+                    opt = opt.glossary_id(g);
+                }
+                
+                // Upload
+                println!("Uploading file...");
+                doc = dl.document_upload(opt)?;
+                let Document { document_id, document_key } = &doc;
+                println!("Document id: {document_id}");
+                println!("Key: {document_key}");
             }
-            if let Some(f) = params.formality {
-                opt = opt.formality(Formality::from_str(&f).unwrap());
-            }
-            if let Some(g) = params.glossary {
-                opt = opt.glossary_id(g);
-            }
-            
-            // Upload
-            println!("Uploading file...");
-            let doc = dl.document_upload(opt)?;
 
             // Poll status
             let mut is_done = false;
@@ -193,8 +198,8 @@ fn main() -> anyhow::Result<()> {
             }
 
             if !is_done {
+                println!("Please try download again with document id and key");
                 bail!("Poll status timeout");
-                //TODO: prompt user to try download again
             }
             if server_err.is_some() {
                 bail!("{}", server_err.unwrap());
@@ -214,17 +219,15 @@ fn main() -> anyhow::Result<()> {
             println!("Fetching source languages...");
             let languages = dl.languages(LanguageType::Source)?;
             for lang in languages {
-                let code = lang.language;
-                let name = lang.name;
-                println!("{code} {name}");
-            }            
+                let json = serde_json::to_string_pretty(&lang)?;
+                println!("{json}");
+            }
             
             println!("Fetching target languages...");
             let languages = dl.languages(LanguageType::Target)?;
             for lang in languages {
-                let code = lang.language;
-                let name = lang.name;
-                println!("{code} {name}");
+                let json = serde_json::to_string_pretty(&lang)?;
+                println!("{json}");
             }
         },
         // Glossary
@@ -238,16 +241,14 @@ fn main() -> anyhow::Result<()> {
                         println!("None");
                     } else {
                         for glos in glossaries {
-                            //TODO
-                            // let json = serde_json::to_string_pretty(&glos)?;
-                            println!("{glos:?}");
+                            let json = serde_json::to_string_pretty(&glos)?;
+                            println!("{json}");
                         }
                     }
                 },
                 Glos::Get(glos) => {
-                    let glossary = dl.glossary_info(&glos.id)?;
-                    //println!("{}", serde_json::to_string_pretty(&glos)?);
-                    println!("{glossary:?}");
+                    let glos = dl.glossary_info(&glos.id)?;
+                    println!("{}", serde_json::to_string_pretty(&glos)?);
                 },
                 Glos::Entries(glos) => {
                     let entries = dl.glossary_entries(&glos.id)?;
@@ -262,11 +263,48 @@ fn main() -> anyhow::Result<()> {
                         bail!("invalid source lang");
                     };
 
-                    let file_path = PathBuf::from(params.file);
-                    let entries = fs::read_to_string(file_path)?;
-                    //TODO: read from stdin
-                    // or as cli option
-                    let fmt = if params.csv { GlossaryEntriesFormat::Csv } else { GlossaryEntriesFormat::Tsv };
+                    let entries: String;
+                    let mut fmt_optional = true;
+                    if let Some(fp) = params.file {
+                        // Read in file
+                        let file_path = PathBuf::from(fp);
+                        entries = fs::read_to_string(file_path)?;
+                    } else {
+                        let Some(raw) = params.entries else {
+                            bail!("missing required glossary entries");
+                        };
+                        if raw.starts_with('-') {
+                            // Read from stdin
+                            let mut s = String::new();
+                            io::stdin().read_to_string(&mut s).expect("failed to read stdin");
+                            entries = s;           
+                        } else {
+                            // else Parse cli arg "src=trg, src=trg,..."
+                            fmt_optional = false;
+                            let raw_entries: Vec<&str> = raw.split(',').map(|s| s.trim()).collect();
+                            
+                            let mut s = String::new();
+                            for elem in raw_entries {
+                                let mut pair: Vec<&str> = elem.split('=').collect();
+                                if pair.len() != 2 { bail!("invalid entries format") }
+                                let trg = pair.pop().unwrap();
+                                let src = pair.pop().unwrap();
+                                s.push_str(
+                                    &format!("{src},")
+                                );
+                                s.push_str(
+                                    &format!("{trg}\n")
+                                );
+                            }
+                            entries = s;
+                        }
+                    }
+
+                    // set entries format
+                    let mut fmt = GlossaryEntriesFormat::Csv;
+                    if fmt_optional && params.tsv {
+                        fmt = GlossaryEntriesFormat::Tsv;
+                    }
 
                     let glos = dl.glossary_new(name, src, trg, entries, fmt)?;
                     println!("{}", glos.glossary_id);

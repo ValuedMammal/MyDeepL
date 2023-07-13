@@ -14,7 +14,7 @@ pub struct Args {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum Cmd {
-    /// Fetch information about account usage & limits
+    /// Get account usage & limits
     Usage,
     /// Translate text
     Text(TxtOpt),
@@ -53,7 +53,7 @@ pub struct TxtOpt {
     /// Glossary id to use for translation
     #[clap(long)]
     pub glossary: Option<String>,
-    /// (experimental) Translate a list of newline-separated text of variable source lang. Only applies when reading stdin, overrides --source option
+    /// Translate a list of newline-separated text of variable source lang (read from stdin), overrides --source option
     #[clap(long)]
     pub multi_lang: bool,
     /// Actvates tag handling [xml,html]
@@ -62,7 +62,7 @@ pub struct TxtOpt {
     /// Turn off automatic outline detection used for tag handling
     #[clap(long)]
     pub no_outline_detection: bool,
-    /// Tags which always split sentences, can be formatted as a comma-separated list e.g. "head,title,body"
+    /// Tags which always split sentences, formatted as comma-separated list, e.g. "head,title,body"
     #[clap(long)]
     pub splitting_tags: Option<String>,
     /// Tags which never split sentences, format like splitting-tags
@@ -76,19 +76,19 @@ pub struct TxtOpt {
 /// Translate document options
 #[derive(Parser, Debug)]
 pub struct DocOpt {
-    /// Source lang
-    #[clap(short = 's')]
+    /// Source language
+    #[clap(short = 's', long)]
     pub source: Option<String>,
-    /// Target lang
-    #[clap(short = 't')]
-    pub target: String,
-    /// Path to input file
+    /// Target language (required for upload)
+    #[clap(short = 't', long)]
+    pub target: Option<String>,
+    /// Path to input file (required for upload)
     #[clap(long)]
-    pub file: String,
+    pub file: Option<String>,
     /// Document filename
     #[clap(long)]
     pub filename: Option<String>,
-    /// Output file
+    /// Path to output file
     #[clap(long)]
     pub out_file: Option<String>,
     /// Formality preference
@@ -97,6 +97,12 @@ pub struct DocOpt {
     /// Glossary id
     #[clap(long)]
     pub glossary: Option<String>,
+    /// Document id. Skip upload and request download for existing document
+    #[clap(long)]
+    pub doc_id: Option<String>,
+    /// Document key (required if --doc_id present)
+    #[clap(long)]
+    pub key: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -126,21 +132,20 @@ pub struct GlosNew {
     #[clap(long)]
     pub name: String,
     /// Source language
-    #[clap(short = 's')]
+    #[clap(short = 's', long)]
     pub source: String,
     /// Target language
-    #[clap(short = 't')]
+    #[clap(short = 't', long)]
     pub target: String,
-    /// Path to input data. Expects source/target pairs in TSV format, one entry per line
+    /// Path to input data. Expects source/target pairs in CSV format, one entry per line
     #[clap(long)]
-    pub file: String,
-    /// Interpret data from input as CSV rather than TSV
+    pub file: Option<String>,
+    /// Interpret data from input as TSV rather than CSV
     #[clap(long)]
-    pub csv: bool,
-    // One or more glossary entries formatted [SRC=TRG ...]. If --file is specified, then this option is ignored.
-    //TODO:
-    // #[clap(long)]
-    // pub entries: Option<String>,
+    pub tsv: bool,
+    /// One or more glossary entries formatted "SRC=TRG, SRC=TRG, ..." If --file specified, then this option is ignored.
+    #[clap(long)]
+    pub entries: Option<String>,
 }
 
 #[derive(Parser, Debug)]
