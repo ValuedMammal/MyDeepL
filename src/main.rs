@@ -28,7 +28,7 @@ fn main() -> anyhow::Result<()> {
     let Ok(key) = env::var("DEEPL_API_KEY") else {
         bail!("Please make sure DEEPL_API_KEY is set")
     };
-    let dl = DeepL::new(key);
+    let dl = DeepL::new(&key);
     
     // Execute command
     match args.cmd {
@@ -252,7 +252,9 @@ fn main() -> anyhow::Result<()> {
                 },
                 Glos::Entries(glos) => {
                     let entries = dl.glossary_entries(&glos.id)?;
-                    print!("{entries}");
+                    for (k, v) in entries {
+                        println!("{k} {v}");
+                    }
                 },
                 Glos::Create(params) => {
                     let name = params.name;
