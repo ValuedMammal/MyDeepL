@@ -116,6 +116,8 @@ pub struct GlosSub {
 pub enum Glos {
     /// Create a new glossary
     Create(GlosNew),
+    /// Get supported glossary language pairs
+    Pairs,
     /// List available glossaries
     List,
     /// Get glossary metadata

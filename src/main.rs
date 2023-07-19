@@ -8,6 +8,7 @@ use deeprl::{
     text::{Formality, SplitSentences, TagHandling}, 
     Document,
 };
+use serde_json::Value;
 use std::{
     env,
     fs,
@@ -170,8 +171,11 @@ fn main() -> anyhow::Result<()> {
                 println!("Uploading file...");
                 doc = dl.document_upload(opt)?;
                 let Document { document_id, document_key } = &doc;
-                println!("Document id: {document_id}");
-                println!("Key: {document_key}");
+                
+                let mut map = serde_json::Map::new();
+                map.insert("document_id".to_string(), Value::String(document_id.clone()));
+                map.insert("document_key".to_string(), Value::String(document_key.clone()));
+                println!("{}", serde_json::to_string_pretty(&map)?);
             }
 
             // Poll status
@@ -182,10 +186,9 @@ fn main() -> anyhow::Result<()> {
                 thread::sleep(secs);
 
                 let status = dl.document_status(&doc)?;
-                let state = status.status;
-                println!("Status: {state:?}");
+                println!("Status: {:?}", status.status);
 
-                if state.is_done() {
+                if status.is_done() {
                     is_done = true;
                     break
                 }
@@ -216,35 +219,60 @@ fn main() -> anyhow::Result<()> {
         },
         // Languages
         Cmd::Languages => {
-            println!("Fetching source languages...");
+            let mut map = serde_json::Map::new();
+            /*
+            {
+                source_languages: [
+                    {
+                        language: EN,
+                        name: English,
+                    },
+                ],
+                target_languages: [
+                    {
+                        ...
+                    },
+                ]
+            }
+            */
+            
+            let mut src: Vec<Value> = vec![];
             let languages = dl.languages(LanguageType::Source)?;
             for lang in languages {
-                let json = serde_json::to_string_pretty(&lang)?;
-                println!("{json}");
+                let mut map = serde_json::Map::new();
+                map.insert("language".to_string(), Value::String(lang.language));
+                map.insert("name".to_string(), Value::String(lang.name));
+                let obj = Value::Object(map);
+                src.push(obj);
             }
+            map.insert("source_languages".to_string(), Value::Array(src));
             
-            println!("Fetching target languages...");
+            let mut trg: Vec<Value> = vec![];
             let languages = dl.languages(LanguageType::Target)?;
             for lang in languages {
-                let json = serde_json::to_string_pretty(&lang)?;
-                println!("{json}");
+                let mut map = serde_json::Map::new();
+                map.insert("language".to_string(), Value::String(lang.language));
+                map.insert("name".to_string(), Value::String(lang.name));
+                map.insert("supports_formality".to_string(), Value::Bool(lang.supports_formality.unwrap()));
+                let obj = Value::Object(map);
+                trg.push(obj);
             }
+            map.insert("target_languages".to_string(), Value::Array(trg));
+            
+            let json = serde_json::to_string_pretty(&map)?;
+            println!("{json}");
         },
         // Glossary
         Cmd::Glossary(sub) => {
             match sub.cmd {
+                Glos::Pairs => {
+                    let pairs = dl.glossary_languages()?;
+                    println!("{}", serde_json::to_string_pretty(&pairs)?);
+                },
                 Glos::List => {
-                    let glossaries = dl.glossaries()?
-                        .glossaries;
-
-                    if glossaries.is_empty() {
-                        println!("None");
-                    } else {
-                        for glos in glossaries {
-                            let json = serde_json::to_string_pretty(&glos)?;
-                            println!("{json}");
-                        }
-                    }
+                    let glossaries = dl.glossaries()?;
+                    let json = serde_json::to_string_pretty(&glossaries)?;
+                    println!("{json}");
                 },
                 Glos::Get(glos) => {
                     let glos = dl.glossary_info(&glos.id)?;
@@ -287,8 +315,8 @@ fn main() -> anyhow::Result<()> {
                             
                             let mut s = String::new();
                             for elem in raw_entries {
-                                let mut pair: Vec<&str> = elem.split('=').collect();
-                                if pair.len() != 2 { bail!("invalid entries format") }
+                                let mut pair: Vec<&str> = elem.split('=').map(|s| s.trim()).collect();
+                                if pair.len() != 2 { continue }
                                 let trg = pair.pop().unwrap();
                                 let src = pair.pop().unwrap();
                                 s.push_str(
