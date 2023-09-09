@@ -200,12 +200,12 @@ fn main() -> anyhow::Result<()> {
                 secs *= 2;
             }
 
+            if server_err.is_some() {
+                bail!("{}", server_err.unwrap());
+            }
             if !is_done {
                 println!("Please try download again with document id and key");
                 bail!("Poll status timeout");
-            }
-            if server_err.is_some() {
-                bail!("{}", server_err.unwrap());
             }
 
             // Download
