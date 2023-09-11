@@ -60,13 +60,15 @@ fn main() -> anyhow::Result<()> {
                 }
                 // else skip source lang if input contains variable lang
             }
+            let mut split_sentences: Option<SplitSentences> = None;
             if let Some(ss) = params.split_sentences {
                 let split = match ss.as_str() {
                     "0" => SplitSentences::None,
                     "nonewlines" => SplitSentences::NoNewlines,
                     _ => SplitSentences::Default
                 };
-                opt = opt.split_sentences(split);
+                opt = opt.split_sentences(split.clone());
+                split_sentences = Some(split);
             }
             if params.preserve_formatting {
                 opt = opt.preserve_formatting(true);
@@ -101,19 +103,36 @@ fn main() -> anyhow::Result<()> {
 
             // Get input text and call translate api
             let mut text: Vec<String> = vec![];
-            if params.text.is_none() { 
-                for ln in io::stdin().lines() {
-                    text.push(ln.unwrap());
-                }
-            } else {
-                let t = params.text.unwrap();
-                if t.starts_with('-') {
-                    for ln in io::stdin().lines() {
-                        text.push(ln.unwrap());
+            let input = match params.text {
+                None  => {
+                    // read stdin
+                    let mut buf = String::new();
+                    io::stdin().read_to_string(&mut buf).unwrap();
+                    buf
+                },
+                Some(t) => {
+                    if t.starts_with('-') {
+                        // read stdin
+                        let mut buf = String::new();
+                        io::stdin().read_to_string(&mut buf).unwrap();
+                        buf
+                    } else {
+                        t
                     }
-                } else {
-                    // Single string
-                    text.push(t);
+                },
+            };
+            
+            match split_sentences {
+                None | Some(SplitSentences::Default) => {
+                    // split lines (default)
+                    // send many for separate translation
+                    for ln in input.lines() {
+                        text.push(ln.to_string());
+                    }
+                },
+                Some(SplitSentences::None) | Some(SplitSentences::NoNewlines) => {
+                    // no split
+                    text.push(input);
                 }
             }
 
