@@ -4,7 +4,7 @@ DeepL command line utility
 ### Usage
 
 ```
-$ export DEEPL_API_KEY=<YOUR KEY>
+$ export DEEPL_API_KEY=<YOUR_KEY>
 ```
 
 ```
@@ -28,6 +28,6 @@ Options:
 ```
 
 ```
-$ echo 'the red crab' | deepl text -source 'en' -target 'fr'
+$ echo 'the red crab' | deepl text -s 'en' -t 'fr'
 # le crabe rouge
 ```
