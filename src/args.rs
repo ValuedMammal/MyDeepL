@@ -139,13 +139,13 @@ pub struct GlosNew {
     /// Target language
     #[clap(short = 't', long)]
     pub target: String,
-    /// Path to input data. Expects source/target pairs in CSV format, one entry per line
+    /// Path to input data. Expects source-target pairs in CSV format, one entry per line. (overrides --entries)
     #[clap(long)]
     pub file: Option<String>,
-    /// Interpret data from input as TSV rather than CSV
+    /// Interpret data from file or stdin as TSV (not applicable to --entries)
     #[clap(long)]
     pub tsv: bool,
-    /// One or more glossary entries formatted "SRC=TRG, SRC=TRG, ..." If --file specified, then this option is ignored.
+    /// One or more glossary entries formatted "SRC=TRG, ...,"
     #[clap(long)]
     pub entries: Option<String>,
 }
