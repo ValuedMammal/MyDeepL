@@ -1,4 +1,4 @@
-pub use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand};
 
 /// DeepL cli - machine translation at the speed of Rust
 #[derive(Parser, Debug)]
@@ -12,7 +12,7 @@ pub struct Args {
     pub cmd: Cmd,
 }
 
-#[derive(clap::Subcommand, Debug)]
+#[derive(Subcommand, Debug)]
 pub enum Cmd {
     /// Get account usage & limits
     Usage,
@@ -53,7 +53,7 @@ pub struct TxtOpt {
     /// Glossary id to use for translation
     #[clap(long)]
     pub glossary: Option<String>,
-    /// Translate a list of newline-separated text of variable source lang (read from stdin), overrides --source option
+    /// Translate a list of newline-separated text of variable source lang (from stdin), overrides -s
     #[clap(long)]
     pub multi_lang: bool,
     /// Actvates tag handling [xml,html]

@@ -1,3 +1,5 @@
+use anyhow::bail;
+use clap::Parser;
 use deeprl::{
     DeepL,
     DocumentOptions,
@@ -18,9 +20,8 @@ use std::{
     thread, 
     time::Duration,
 };
-use anyhow::bail;
 use crate::args::*;
-pub mod args;
+mod args;
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
@@ -51,6 +52,8 @@ fn main() -> anyhow::Result<()> {
             // Set optional
             // src, split_sent, preserve, formal, glos, tags, outline, split_tag, nonsplit_tag, ignore_tag
             let mut opt = TextOptions::new(target_lang);
+            
+            // skip source lang if input contains variable lang
             if !params.multi_lang {
                 if let Some(src) = params.source {
                     let Ok(source_lang) = src.parse::<Language>() else {
@@ -58,8 +61,8 @@ fn main() -> anyhow::Result<()> {
                     };
                     opt = opt.source_lang(source_lang);
                 }
-                // else skip source lang if input contains variable lang
             }
+
             let mut split_sentences: Option<SplitSentences> = None;
             if let Some(ss) = params.split_sentences {
                 let split = match ss.as_str() {
@@ -67,7 +70,7 @@ fn main() -> anyhow::Result<()> {
                     "nonewlines" => SplitSentences::NoNewlines,
                     _ => SplitSentences::Default
                 };
-                opt = opt.split_sentences(split.clone());
+                opt = opt.split_sentences(split);
                 split_sentences = Some(split);
             }
             if params.preserve_formatting {
@@ -117,6 +120,7 @@ fn main() -> anyhow::Result<()> {
                         io::stdin().read_to_string(&mut buf).unwrap();
                         buf
                     } else {
+                        // text cli option
                         t
                     }
                 },
@@ -130,7 +134,7 @@ fn main() -> anyhow::Result<()> {
                         text.push(ln.to_string());
                     }
                 },
-                Some(SplitSentences::None) | Some(SplitSentences::NoNewlines) => {
+                Some(SplitSentences::None | SplitSentences::NoNewlines) => {
                     // no split
                     text.push(input);
                 }
@@ -240,19 +244,19 @@ fn main() -> anyhow::Result<()> {
         Cmd::Languages => {
             let mut map = serde_json::Map::new();
             /*
-            {
-                source_languages: [
-                    {
-                        language: EN,
-                        name: English,
-                    },
-                ],
-                target_languages: [
-                    {
-                        ...
-                    },
-                ]
-            }
+            "source_languages": [
+                {
+                    "language": EN,
+                    "name": English,
+                },
+            ],
+            "target_languages": [
+                {
+                    "language": EN-US,
+                    "name": English (American),
+                    "supports_formality": false
+                },
+            ]
             */
             
             let mut src: Vec<Value> = vec![];
