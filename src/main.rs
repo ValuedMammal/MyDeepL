@@ -349,8 +349,7 @@ fn main() -> anyhow::Result<()> {
 
                             let mut entries = String::new();
                             for entry in raw_entries {
-                                let pair: Vec<&str> =
-                                    entry.split('=').map(|s| s.trim()).collect();
+                                let pair: Vec<&str> = entry.split('=').map(|s| s.trim()).collect();
                                 if pair.len() != 2 {
                                     continue;
                                 }
@@ -375,7 +374,7 @@ fn main() -> anyhow::Result<()> {
                 },
                 // Delete a glossary
                 Glos::Delete(glos) => {
-                    let _ = dl.glossary_del(&glos.id);
+                    let _ = dl.glossary_delete(&glos.id);
                     println!("Done.");
                 },
             }

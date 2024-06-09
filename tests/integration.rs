@@ -35,6 +35,7 @@ fn translate_error() {
     assert!(!stderr.is_empty());
 }
 
+#[rustfmt::skip]
 #[test]
 fn glossary_create() {
     // pass entries in cli options
