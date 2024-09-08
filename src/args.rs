@@ -107,7 +107,6 @@ pub struct DocOpt {
 
 #[derive(Parser, Debug)]
 pub struct GlosSub {
-    ///
     #[clap(subcommand)]
     pub cmd: Glos,
 }

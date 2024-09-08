@@ -10,7 +10,6 @@ use std::{
     env, fs,
     io::{self, Read},
     path::PathBuf,
-    str::FromStr,
     thread,
     time::Duration,
 };
@@ -34,7 +33,7 @@ fn main() -> anyhow::Result<()> {
             let limit = usage.character_limit;
 
             println!("Used: {count}/{limit}");
-        },
+        }
         // Text
         Cmd::Text(params) => {
             // Check we have a valid target lang
@@ -69,9 +68,15 @@ fn main() -> anyhow::Result<()> {
             if params.preserve_formatting {
                 opt = opt.preserve_formatting(true);
             }
-            if let Some(f) = params.formality {
-                opt = opt.formality(Formality::from_str(&f).unwrap());
-                // Ok to unwrap, as `from_str` defaults to Default
+            if let Some(fml) = params.formality {
+                let formality = match fml.as_str() {
+                    "more" => Formality::More,
+                    "less" => Formality::Less,
+                    "prefer_more" => Formality::PreferMore,
+                    "prefer_less" => Formality::PreferLess,
+                    _ => Formality::Default,
+                };
+                opt = opt.formality(formality);
             }
             if let Some(g) = params.glossary {
                 opt = opt.glossary_id(g);
@@ -87,14 +92,17 @@ fn main() -> anyhow::Result<()> {
             if params.no_outline_detection {
                 opt = opt.outline_detection(false);
             }
-            if let Some(split) = params.splitting_tags {
-                opt = opt.splitting_tags(split);
+            if let Some(tags) = params.splitting_tags {
+                let tags: Vec<_> = tags.split(",").map(ToOwned::to_owned).collect();
+                opt = opt.splitting_tags(tags);
             }
-            if let Some(non) = params.non_splitting_tags {
-                opt = opt.non_splitting_tags(non);
+            if let Some(tags) = params.non_splitting_tags {
+                let tags: Vec<_> = tags.split(",").map(ToOwned::to_owned).collect();
+                opt = opt.non_splitting_tags(tags);
             }
-            if let Some(ig) = params.ignore_tags {
-                opt = opt.ignore_tags(ig);
+            if let Some(tags) = params.ignore_tags {
+                let tags: Vec<_> = tags.split(",").map(ToOwned::to_owned).collect();
+                opt = opt.ignore_tags(tags);
             }
 
             // Get input text and call translate api
@@ -105,7 +113,7 @@ fn main() -> anyhow::Result<()> {
                     let mut buf = String::new();
                     io::stdin().read_to_string(&mut buf).unwrap();
                     buf
-                },
+                }
                 Some(t) => {
                     if t.starts_with('-') {
                         // read stdin
@@ -116,7 +124,7 @@ fn main() -> anyhow::Result<()> {
                         // text cli option
                         t
                     }
-                },
+                }
             };
 
             match split_sentences {
@@ -126,21 +134,23 @@ fn main() -> anyhow::Result<()> {
                     for ln in input.lines() {
                         text.push(ln.to_string());
                     }
-                },
+                }
                 Some(SplitSentences::None | SplitSentences::NoNewlines) => {
                     // no split
                     text.push(input);
-                },
+                }
             }
 
-            let result = dl.translate(opt, text)?;
+            opt = opt.text(text);
+
+            let result = dl.translate(opt)?;
             for t in result.translations {
                 if params.show_detected {
                     println!("Detected: {}", t.detected_source_language);
                 }
                 println!("{}", t.text);
             }
-        },
+        }
         // Document
         Cmd::Document(params) => {
             let doc: Document;
@@ -179,8 +189,15 @@ fn main() -> anyhow::Result<()> {
                     };
                     opt = opt.source_lang(source_lang);
                 }
-                if let Some(f) = params.formality {
-                    opt = opt.formality(Formality::from_str(&f).unwrap());
+                if let Some(fml) = params.formality {
+                    let formality = match fml.as_str() {
+                        "more" => Formality::More,
+                        "less" => Formality::Less,
+                        "prefer_more" => Formality::PreferMore,
+                        "prefer_less" => Formality::PreferLess,
+                        _ => Formality::Default,
+                    };
+                    opt = opt.formality(formality);
                 }
                 if let Some(g) = params.glossary {
                     opt = opt.glossary_id(g);
@@ -244,7 +261,7 @@ fn main() -> anyhow::Result<()> {
             println!("Retrieving results...");
             let result = dl.document_download(doc, out_file)?;
             print!("New translation file: {result:?}");
-        },
+        }
         // Languages
         Cmd::Languages => {
             let mut map = serde_json::Map::new();
@@ -292,29 +309,29 @@ fn main() -> anyhow::Result<()> {
 
             let json = serde_json::to_string_pretty(&map)?;
             println!("{json}");
-        },
+        }
         // Glossary
         Cmd::Glossary(sub) => {
             match sub.cmd {
                 Glos::Pairs => {
                     let pairs = dl.glossary_languages()?;
                     println!("{}", serde_json::to_string_pretty(&pairs)?);
-                },
+                }
                 Glos::List => {
                     let glossaries = dl.glossaries()?;
                     let json = serde_json::to_string_pretty(&glossaries)?;
                     println!("{json}");
-                },
+                }
                 Glos::Get(glos) => {
                     let glos = dl.glossary_info(&glos.id)?;
                     println!("{}", serde_json::to_string_pretty(&glos)?);
-                },
+                }
                 Glos::Entries(glos) => {
                     let entries = dl.glossary_entries(&glos.id)?;
                     for (k, v) in entries {
                         println!("{k} {v}");
                     }
-                },
+                }
                 Glos::Create(params) => {
                     let name = params.name;
                     let Ok(src) = params.source.parse::<Language>() else {
@@ -371,14 +388,14 @@ fn main() -> anyhow::Result<()> {
 
                     let glos = dl.glossary_new(name, src, trg, entries, fmt)?;
                     println!("{}", glos.glossary_id);
-                },
+                }
                 // Delete a glossary
                 Glos::Delete(glos) => {
                     let _ = dl.glossary_delete(&glos.id);
                     println!("Done.");
-                },
+                }
             }
-        },
+        }
     };
 
     Ok(())
