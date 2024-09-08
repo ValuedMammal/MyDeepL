@@ -3,10 +3,10 @@ use std::io::{self, Read};
 use deeprl::{DeepL, Formality, Language, SplitSentences, TagHandling, TextOptions};
 
 use super::{bail, Result};
-use crate::cli::TxtOpt;
+use crate::cli::TextParams;
 
 /// Execute text command.
-pub fn execute(dl: &DeepL, params: TxtOpt) -> Result<()> {
+pub fn execute(dl: &DeepL, params: TextParams) -> Result<()> {
     // Check we have a valid target lang
     let Ok(target_lang) = params.target.parse::<Language>() else {
         bail!("invalid target lang")

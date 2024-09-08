@@ -17,18 +17,18 @@ pub enum Cmd {
     /// Get account usage & limits
     Usage,
     /// Translate text
-    Text(TxtOpt),
+    Text(TextParams),
     /// Translate a document
-    Document(DocOpt),
+    Document(DocParams),
     /// Fetch list of available source and target languages
     Languages,
     /// Create, list, and remove glossaries
-    Glossary(GlosSub),
+    Glossary(Glos),
 }
 
 /// Translate text options
 #[derive(Parser, Debug)]
-pub struct TxtOpt {
+pub struct TextParams {
     /// Source language
     #[clap(short = 's', long)]
     pub source: Option<String>,
@@ -75,7 +75,7 @@ pub struct TxtOpt {
 
 /// Translate document options
 #[derive(Parser, Debug)]
-pub struct DocOpt {
+pub struct DocParams {
     /// Source language
     #[clap(short = 's', long)]
     pub source: Option<String>,
@@ -106,13 +106,13 @@ pub struct DocOpt {
 }
 
 #[derive(Parser, Debug)]
-pub struct GlosSub {
+pub struct Glos {
     #[clap(subcommand)]
-    pub cmd: Glos,
+    pub cmd: GlosSub,
 }
 
 #[derive(clap::Subcommand, Debug)]
-pub enum Glos {
+pub enum GlosSub {
     /// Create a new glossary
     Create(GlosNew),
     /// Get supported glossary language pairs

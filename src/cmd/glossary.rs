@@ -5,30 +5,30 @@ use std::path::PathBuf;
 use deeprl::{DeepL, GlossaryEntriesFormat, Language};
 
 use super::{bail, Result};
-use crate::cli::{Glos, GlosSub};
+use crate::cli::{Glos, GlosSub as Cmd};
 
-pub fn execute(dl: &DeepL, sub: GlosSub) -> Result<()> {
-    match sub.cmd {
-        Glos::Pairs => {
+pub fn execute(dl: &DeepL, glos: Glos) -> Result<()> {
+    match glos.cmd {
+        Cmd::Pairs => {
             let pairs = dl.glossary_languages()?;
             println!("{}", serde_json::to_string_pretty(&pairs)?);
         }
-        Glos::List => {
+        Cmd::List => {
             let glossaries = dl.glossaries()?;
             let json = serde_json::to_string_pretty(&glossaries)?;
             println!("{json}");
         }
-        Glos::Get(glos) => {
+        Cmd::Get(glos) => {
             let glos = dl.glossary_info(&glos.id)?;
             println!("{}", serde_json::to_string_pretty(&glos)?);
         }
-        Glos::Entries(glos) => {
+        Cmd::Entries(glos) => {
             let entries = dl.glossary_entries(&glos.id)?;
             for (k, v) in entries {
                 println!("{k} {v}");
             }
         }
-        Glos::Create(params) => {
+        Cmd::Create(params) => {
             let name = params.name;
             let Ok(src) = params.source.parse::<Language>() else {
                 bail!("invalid source lang");
@@ -86,7 +86,7 @@ pub fn execute(dl: &DeepL, sub: GlosSub) -> Result<()> {
             println!("{}", glos.glossary_id);
         }
         // Delete a glossary
-        Glos::Delete(glos) => {
+        Cmd::Delete(glos) => {
             let _ = dl.glossary_delete(&glos.id);
             println!("Done.");
         }

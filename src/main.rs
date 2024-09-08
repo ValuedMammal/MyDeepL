@@ -27,7 +27,7 @@ fn main() -> anyhow::Result<()> {
         Cmd::Text(params) => cmd::text::execute(&dl, params)?,
         Cmd::Document(params) => cmd::document::execute(&dl, params)?,
         Cmd::Languages => cmd::languages::execute(&dl)?,
-        Cmd::Glossary(sub) => cmd::glossary::execute(&dl, sub)?,
+        Cmd::Glossary(glos) => cmd::glossary::execute(&dl, glos)?,
     }
 
     Ok(())

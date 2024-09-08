@@ -6,10 +6,10 @@ use deeprl::{DeepL, Document, DocumentOptions, Formality, Language};
 use serde_json::Value;
 
 use super::{bail, Result};
-use crate::cli::DocOpt;
+use crate::cli::DocParams;
 
 /// Execute document command.
-pub fn execute(dl: &DeepL, params: DocOpt) -> Result<()> {
+pub fn execute(dl: &DeepL, params: DocParams) -> Result<()> {
     let doc: Document;
     // Skip upload if doc handle present
     if let Some(document_id) = params.doc_id {
