@@ -26,15 +26,13 @@ pub fn execute(dl: &DeepL, params: TextParams) -> Result<()> {
         }
     }
 
-    let mut split_sentences: Option<SplitSentences> = None;
-    if let Some(ss) = params.split_sentences {
-        let split = match ss.as_str() {
+    if let Some(split) = params.split_sentences {
+        let ss = match split.as_str() {
             "0" => SplitSentences::None,
             "nonewlines" => SplitSentences::NoNewlines,
             _ => SplitSentences::Default,
         };
-        opt = opt.split_sentences(split);
-        split_sentences = Some(split);
+        opt = opt.split_sentences(ss);
     }
     if params.preserve_formatting {
         opt = opt.preserve_formatting(true);
@@ -78,40 +76,16 @@ pub fn execute(dl: &DeepL, params: TextParams) -> Result<()> {
 
     // Get input text and call translate api
     let mut text: Vec<String> = vec![];
-    let input = match params.text {
-        None => {
-            // read stdin
-            let mut buf = String::new();
-            io::stdin().read_to_string(&mut buf).unwrap();
-            buf
-        }
-        Some(t) => {
-            if t.starts_with('-') {
-                // read stdin
-                let mut buf = String::new();
-                io::stdin().read_to_string(&mut buf).unwrap();
-                buf
-            } else {
-                // text cli option
-                t
-            }
-        }
-    };
-
-    // TODO: this seems wrong. instead of applying split-sentence logic (which is handled by the
-    // server) we should just split input on '\n' by default
-    match split_sentences {
-        None | Some(SplitSentences::Default) => {
-            // split lines (default)
-            // send many for separate translation
-            for ln in input.lines() {
-                text.push(ln.to_string());
-            }
-        }
-        Some(SplitSentences::None | SplitSentences::NoNewlines) => {
-            // no split
-            text.push(input);
-        }
+    let input = params.text.unwrap_or_else(|| {
+        // read stdin
+        let mut buf = String::new();
+        let _ = io::stdin()
+            .read_to_string(&mut buf)
+            .expect("must be valid utf-8");
+        buf
+    });
+    for line in input.lines() {
+        text.push(line.to_string());
     }
 
     opt = opt.text(text);
